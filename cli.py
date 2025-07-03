@@ -32,9 +32,7 @@ class TildeCLI:
         # Add system prompt with tool usage examples and strong tool-use instructions
         base_prompt = self.llm_backend.get_system_prompt() if hasattr(self.llm_backend, 'get_system_prompt') else None
         tool_instruction = (
-            "\nIMPORTANT: For any user question about the current date, time, or timezone, you MUST call the 'time' tool. "
-            "Do NOT answer from your own knowledge. Always use the 'time' tool for all such queries, even if the user does not specify a format or timezone. "
-            "If the user asks for the time, date, or timezone, call the tool and present the result.\n"
+            "\n\n"
         )
         if base_prompt:
             self.system_prompt = base_prompt + tool_instruction
@@ -44,19 +42,12 @@ class TildeCLI:
         self.parser = self._setup_parser()
 
     def execute_tool(self, tool, params):
-        return tool.execute(**params)
-
-        # Add system prompt with tool usage examples and strong tool-use instructions
-        base_prompt = self.llm_backend.get_system_prompt() if hasattr(self.llm_backend, 'get_system_prompt') else None
-        tool_instruction = (
-            "\nIMPORTANT: For any user question about the current date, time, or timezone, you MUST call the 'time' tool. "
-            "Do NOT answer from your own knowledge. Always use the 'time' tool for all such queries, even if the user does not specify a format or timezone. "
-            "If the user asks for the time, date, or timezone, call the tool and present the result.\n"
-        )
-        if base_prompt:
-            self.system_prompt = base_prompt + tool_instruction
-        else:
-            self.system_prompt = tool_instruction
+        try:
+            return tool.execute(**params)
+        except TypeError as e:
+            return {"error": f"Tool parameter error: {e}"}
+        except Exception as e:
+            return {"error": f"Tool execution error: {e}"}
 
     def _setup_parser(self):
         parser = argparse.ArgumentParser(description="Tilde CLI - A Python-based command-line assistant.")
@@ -125,34 +116,30 @@ class TildeCLI:
     def _handle_chat(self, initial_prompt: str = None):
         print("Starting chat session. Type 'exit' to quit.")
         prompt_str = "\033[1;32m\033[1m~\033[0m "
-        # Enable command history and arrow key navigation if readline is available
+        session = None
+        use_ansi = False
         try:
-            import readline
-            histdir = os.path.expanduser("~/.tilde-cli")
-            os.makedirs(histdir, exist_ok=True)
-            histfile = os.path.join(histdir, "history")
-            try:
-                readline.read_history_file(histfile)
-            except FileNotFoundError:
-                pass
-            import atexit
-            atexit.register(readline.write_history_file, histfile)
-            def pre_input_hook():
-                import sys
-                # Always clear the line and redraw the prompt before every input
-                sys.stdout.write('\r' + ' ' * 120 + '\r')
-                sys.stdout.write(prompt_str)
-                sys.stdout.flush()
-            readline.set_pre_input_hook(pre_input_hook)
+            from prompt_toolkit import PromptSession
+            from prompt_toolkit.history import FileHistory
+            from prompt_toolkit.formatted_text import ANSI
+            HISTFILE = os.path.expanduser("~/.tilde-cli/history")
+            session = PromptSession(history=FileHistory(HISTFILE))
+            use_ansi = True
         except ImportError:
-            readline = None
+            print("prompt_toolkit is not installed. Please install it for advanced input features.")
+
         if initial_prompt:
             self._process_and_get_llm_response(initial_prompt)
 
         while True:
             try:
-                # Do not print the prompt here; pre_input_hook handles it for every input
-                user_input = input()
+                if session:
+                    if use_ansi:
+                        user_input = session.prompt(ANSI(prompt_str))
+                    else:
+                        user_input = session.prompt(prompt_str)
+                else:
+                    user_input = input(prompt_str)
                 if user_input.lower() == 'exit':
                     break
                 self._process_and_get_llm_response(user_input)
@@ -174,15 +161,23 @@ class TildeCLI:
         self.session.add_turn("user", user_input)
         self._get_llm_response(call_depth=0)
 
-    def _get_llm_response(self, call_depth=0, max_depth=5):
+    def _get_llm_response(self, call_depth=0, max_depth=5, _force_system_only=False):
         if call_depth > max_depth:
             print(f"[Warning] Maximum tool execution recursion depth ({max_depth}) reached. Aborting further tool calls.")
             return
         max_tokens = 2048
-        messages = self._get_context_window(self.session.history, max_tokens)
-        # Insert system prompt as first message if available
-        if self.system_prompt:
-            messages = ([{"role": "system", "content": self.system_prompt}] + messages)
+        if _force_system_only:
+            messages = [{"role": "system", "content": self.system_prompt}]
+        else:
+            messages = self._get_context_window(self.session.history, max_tokens)
+            # Insert system prompt as first message if available
+            if self.system_prompt:
+                messages = ([{"role": "system", "content": self.system_prompt}] + messages)
+        # DEBUG: Log prompt sent to LLM at debug level
+        import logging
+        prompt_debug = "\n--- LLM PROMPT ---\n" + "\n".join(f"{m['role']}: {m['content']}" for m in messages) + "\n-------------------\n"
+        logging.debug(prompt_debug)
+
         import threading
         import time
         stop_spinner = threading.Event()
@@ -198,11 +193,14 @@ class TildeCLI:
                 tool_call = None
                 hide_think = getattr(Config, 'HIDE_THINK', True)
                 in_think_block = False
+                # DEBUG: Capture raw LLM response
+                raw_chunks = []
                 for tool_call_candidate, text_chunk in self.model_adapter.parse_response_stream(response_generator):
                     if tool_call_candidate:
                         tool_call = tool_call_candidate
                         break
                     if text_chunk is not None:
+                        raw_chunks.append(str(text_chunk))
                         text = str(text_chunk)
                         if hide_think:
                             # Remove entire <think>...</think> blocks, even if split across chunks
@@ -228,6 +226,7 @@ class TildeCLI:
                             full_response_content += text
                 result_holder['tool_call'] = tool_call
                 result_holder['full_response_content'] = full_response_content
+                result_holder['raw_llm_response'] = ''.join(raw_chunks)
             except Exception as e:
                 response_exception[0] = e
 
@@ -244,6 +243,10 @@ class TildeCLI:
             return
         tool_call = result_holder.get('tool_call')
         full_response_content = result_holder.get('full_response_content', "")
+        raw_llm_response = result_holder.get('raw_llm_response', "")
+        # DEBUG: Log raw LLM response at debug level
+        import logging
+        logging.debug("--- RAW LLM RESPONSE ---\n%s\n------------------------", raw_llm_response)
         if tool_call:
             tool_name = tool_call.get("tool_name") or tool_call.get("name")
             parameters = tool_call.get("parameters", {})
@@ -284,6 +287,23 @@ class TildeCLI:
                 self.session.add_turn("tool", str(tool_output), tool=tool_name)
             self._get_llm_response(call_depth=call_depth+1, max_depth=max_depth)
         else:
+            # Check if the response contains only <think> sections (or is empty/whitespace)
+            import re
+            content_no_think = re.sub(r'<think>[\s\S]*?</think>', '', full_response_content, flags=re.IGNORECASE).strip()
+            if getattr(Config, 'HIDE_THINK', True):
+                if not content_no_think:
+                    # Only <think> section or empty: retry with ONLY the strict warning as the system prompt, no other context
+                    retry_instruction = (
+                        "IMPORTANT: You are NOT allowed to respond with only a <think> section or internal reasoning. "
+                        "Your response MUST include either a tool call or a user-facing answer outside of <think> tags, as plain text or by presenting the tool's output. "
+                        "If you do not call a tool, or if your response is only a <think> section, your response will be ignored. This is your last chance before aborting."
+                    )
+                    original_system_prompt = self.system_prompt
+                    self.system_prompt = retry_instruction
+                    # Call LLM with only the strict system prompt, no user or chat history
+                    self._get_llm_response(call_depth=call_depth+1, max_depth=max_depth, _force_system_only=True)
+                    self.system_prompt = original_system_prompt
+                    return
             # Render the full response as markdown at once for proper formatting
             self.console.print()
             self._render_markdown(full_response_content)
@@ -408,7 +428,13 @@ class TildeCLI:
             print(f"Running tool '{tool_name}' with parameters: {params_dict}")
             # For shell tool, require confirmation
             if tool_name == "shell":
-                confirm = input("This will execute a shell command. Are you sure? (yes/no): ")
+                try:
+                    from prompt_toolkit import PromptSession
+                    from prompt_toolkit.formatted_text import ANSI
+                    session = PromptSession()
+                    confirm = session.prompt(ANSI("\033[1;33mThis will execute a shell command. Are you sure? (yes/no): \033[0m"))
+                except ImportError:
+                    confirm = input("This will execute a shell command. Are you sure? (yes/no): ")
                 if confirm.lower() != "yes":
                     print("Aborted.")
                     return
