@@ -23,11 +23,12 @@ class TimeTool(BaseTool):
             "- format: 'date', 'time', or 'datetime' (default: 'datetime').\n"
             "- timezone: Optional IANA timezone name (e.g., 'UTC', 'America/New_York'). If not provided, uses the system local time.\n"
             "Examples:\n"
-            "- User: What time is it?\n  Tool call: { }\n"
+            "- User: What time is it?\n  Tool call: {\"format\": \"time\"}\n"
             "- User: What's the date today?\n  Tool call: {\"format\": \"date\"}\n"
             "- User: Give me the current time in UTC.\n  Tool call: {\"format\": \"time\", \"timezone\": \"UTC\"}\n"
             "- User: What is the date and time in New York?\n  Tool call: {\"format\": \"datetime\", \"timezone\": \"America/New_York\"}\n"
             "- {\"format\": \"date\"} → 2025-07-02 (Local)\n"
+            "- {\"format\": \"time\"} → 13:45:00 (Local)\n"
             "- {\"format\": \"time\", \"timezone\": \"UTC\"} → 13:45:00 (UTC)\n"
             "- {\"format\": \"datetime\", \"timezone\": \"America/New_York\"} → 09:45:00 (EDT)\n"
         )

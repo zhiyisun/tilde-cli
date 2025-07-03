@@ -43,6 +43,7 @@ class ThinkToggleTool(BaseTool):
         if enabled is None:
             return "Please provide 'enabled': true or false, or 'status': true to query the current state."
         Config.HIDE_THINK = not enabled
+        Config.set_config('HIDE_THINK', not enabled)
         if enabled:
             return "<think> sections will now be shown in LLM responses."
         else:

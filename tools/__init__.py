@@ -10,9 +10,7 @@ from .edit_file import EditFileTool
 from .memory_tool import ListMemoryTool, AddMemoryTool
 
 from .time_tool import TimeTool
-# Add sandbox control tool
 from .think_toggle import ThinkToggleTool
-from .sandbox_control import SandboxControlTool
 
 # Add new tools here as needed
 
@@ -31,7 +29,6 @@ def get_all_tools():
         AddMemoryTool(),
         TimeTool(),
         ThinkToggleTool(),
-        SandboxControlTool(),
     ]
     return {tool.name: tool for tool in tools}
 

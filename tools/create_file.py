@@ -18,16 +18,6 @@ def get_encryption_key():
             key = f.read()
     return key
 
-def is_path_in_sandbox(file_path: str) -> bool:
-    abs_path = os.path.abspath(file_path)
-    return abs_path.startswith(os.path.abspath(SANDBOX_ROOT))
-
-try:
-    from .sandbox_control import is_sandbox_enabled
-except ImportError:
-    def is_sandbox_enabled():
-        return True
-
 class CreateFileTool(BaseTool):
     @property
     def name(self) -> str:
@@ -49,11 +39,8 @@ class CreateFileTool(BaseTool):
         }
 
     def execute(self, file_path: str, content: str, encrypt: bool = False) -> str:
-        # Expand ~ to home directory before sandbox check
+        # Expand ~ to home directory
         file_path = os.path.expanduser(file_path)
-        # Sandbox enforcement (disable if sandbox is disabled)
-        if is_sandbox_enabled() and not is_path_in_sandbox(file_path):
-            return f"Security error: File creation is only allowed inside {SANDBOX_ROOT}. Attempted path: {file_path}"
         try:
             os.makedirs(os.path.dirname(file_path), exist_ok=True)
             if encrypt:

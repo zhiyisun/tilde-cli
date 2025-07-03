@@ -3,11 +3,6 @@ import shlex
 from typing import Dict, Any
 
 from .base_tool import BaseTool
-try:
-    from .sandbox_control import is_sandbox_enabled
-except ImportError:
-    def is_sandbox_enabled():
-        return True
 
 class ShellTool(BaseTool):
     @property
@@ -43,10 +38,10 @@ class ShellTool(BaseTool):
         }
 
     def execute(self, command: str, require_confirmation: bool = True, working_directory: str = None, timeout: int = None) -> Dict[str, str]:
-        # Security: require explicit confirmation unless overridden or sandbox is disabled
-        sandbox = is_sandbox_enabled()
-        if require_confirmation and sandbox:
-            print(f"[SECURITY WARNING] About to execute shell command: {command}")
+        # Security: require explicit confirmation unless overridden
+        if require_confirmation:
+            import logging
+            logging.warning(f"[SECURITY WARNING] About to execute shell command: {command}")
             confirm = input("Are you sure you want to run this command? (yes/no): ")
             if confirm.lower() != "yes":
                 return {"error": "Shell command execution cancelled by user."}

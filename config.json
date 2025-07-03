@@ -1,0 +1,7 @@
+{
+  "OLLAMA_BASE_URL": "http://localhost:11434",
+  "OLLAMA_MODEL": "qwen3:30b",
+  "MEMORY_FILE": "~/.tilde-cli/memory.json",
+  "LOG_LEVEL": "INFO",
+  "HIDE_THINK": true
+}

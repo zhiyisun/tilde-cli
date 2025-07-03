@@ -6,19 +6,6 @@ from .base_tool import BaseTool
 import base64
 from cryptography.fernet import Fernet
 
-try:
-    from .sandbox_control import is_sandbox_enabled
-except ImportError:
-    def is_sandbox_enabled():
-        return True
-
-SANDBOX_ROOT = os.path.expanduser("~/.tilde-cli/sandbox")
-ENCRYPTION_KEY_FILE = os.path.expanduser("~/.tilde-cli/.key")
-
-def is_path_in_sandbox(file_path: str) -> bool:
-    abs_path = os.path.abspath(file_path)
-    return abs_path.startswith(os.path.abspath(SANDBOX_ROOT))
-
 class GrepTool(BaseTool):
     @property
     def name(self) -> str:
@@ -41,11 +28,8 @@ class GrepTool(BaseTool):
         }
 
     def execute(self, pattern: str, path: str = ".", include: str = None, decrypt: bool = False) -> List[str]:
-        # Expand ~ to home directory before sandbox check
+        # Expand ~ to home directory
         path = os.path.expanduser(path)
-        # Sandbox enforcement (disable if sandbox is disabled)
-        if is_sandbox_enabled() and not is_path_in_sandbox(path):
-            return [f"Security error: Grep is only allowed inside {SANDBOX_ROOT}. Tried path: {path}"]
         results = []
         regex = re.compile(pattern)
         key = None

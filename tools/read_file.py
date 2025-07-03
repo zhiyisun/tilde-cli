@@ -4,7 +4,6 @@ from .base_tool import BaseTool
 import base64
 from cryptography.fernet import Fernet
 
-SANDBOX_ROOT = os.path.expanduser("~/.tilde-cli/sandbox")
 ENCRYPTION_KEY_FILE = os.path.expanduser("~/.tilde-cli/.key")
 
 def get_encryption_key():
@@ -18,16 +17,6 @@ def get_encryption_key():
             key = f.read()
     return key
 
-def is_path_in_sandbox(file_path: str) -> bool:
-    abs_path = os.path.abspath(file_path)
-    return abs_path.startswith(os.path.abspath(SANDBOX_ROOT))
-
-try:
-    from .sandbox_control import is_sandbox_enabled
-except ImportError:
-    def is_sandbox_enabled():
-        return True
-
 class ReadFileTool(BaseTool):
     @property
     def name(self) -> str:
@@ -35,24 +24,26 @@ class ReadFileTool(BaseTool):
 
     @property
     def description(self) -> str:
-        return "Reads the content of a specified file."
+        return "Reads the content of a specified file. Accepts either 'file_path' or 'path' as the file location."
 
     @property
     def parameters(self) -> Dict[str, Any]:
         return {
             "type": "object",
             "properties": {
-                "file_path": {"type": "string", "description": "The absolute path to the file to read."}
+                "file_path": {"type": "string", "description": "The absolute path to the file to read."},
+                "path": {"type": "string", "description": "Alias for file_path."}
             },
-            "required": ["file_path"]
+            "required": [],
         }
 
-    def execute(self, file_path: str, decrypt: bool = False) -> str:
-        # Expand ~ to home directory before sandbox check
+    def execute(self, file_path: str = None, path: str = None, decrypt: bool = False) -> str:
+        # Accept either 'file_path' or 'path'
+        file_path = file_path or path
+        if not file_path:
+            return "Error: No file path provided."
+        # Expand ~ to home directory
         file_path = os.path.expanduser(file_path)
-        # Sandbox enforcement (disable if sandbox is disabled)
-        if is_sandbox_enabled() and not is_path_in_sandbox(file_path):
-            return f"Security error: Reading is only allowed inside {SANDBOX_ROOT}. Attempted path: {file_path}"
         try:
             if decrypt:
                 key = get_encryption_key()

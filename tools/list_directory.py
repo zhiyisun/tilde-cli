@@ -1,20 +1,7 @@
-
 import os
 import fnmatch
 from typing import Dict, Any, List
 from .base_tool import BaseTool
-try:
-    from .sandbox_control import is_sandbox_enabled
-except ImportError:
-    def is_sandbox_enabled():
-        return True
-
-SANDBOX_ROOT = os.path.expanduser("~/.tilde-cli/sandbox")
-ENCRYPTION_KEY_FILE = os.path.expanduser("~/.tilde-cli/.key")
-
-def is_path_in_sandbox(file_path: str) -> bool:
-    abs_path = os.path.abspath(file_path)
-    return abs_path.startswith(os.path.abspath(SANDBOX_ROOT))
 
 class ListDirectoryTool(BaseTool):
     @property
@@ -38,11 +25,8 @@ class ListDirectoryTool(BaseTool):
         }
 
     def execute(self, path: str = ".", ignore: List[str] = None, respect_git_ignore: bool = False) -> List[str]:
-        # Expand ~ to home directory before sandbox check
+        # Expand ~ to home directory
         path = os.path.expanduser(path)
-        # Sandbox enforcement (disable if sandbox is disabled)
-        if is_sandbox_enabled() and not is_path_in_sandbox(path):
-            return [f"Security error: Directory listing is only allowed inside {SANDBOX_ROOT}. Tried to access: {path}"]
         entries = []
         ignore = ignore or []
         try:

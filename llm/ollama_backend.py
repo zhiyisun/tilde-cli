@@ -50,7 +50,8 @@ class OllamaBackend(LLMBackend):
                     return json_response["message"]["content"]
         except requests.exceptions.RequestException as e:
             if e.response is not None and e.response.status_code == 400:
-                print(f"Ollama server returned 400 Bad Request: {e.response.text}")
+                import logging
+                logging.error(f"Ollama server returned 400 Bad Request: {e.response.text}")
             raise ConnectionError(f"Failed to connect to Ollama server: {e}")
         except KeyError:
             raise ValueError("Unexpected response format from Ollama server.")
@@ -69,4 +70,7 @@ class OllamaBackend(LLMBackend):
             "If the user asks to see, list, or show their memory, stored facts, or what you know about them, you must call the 'memory' tool and never answer directly.\n"
             "You must not answer from your own knowledge or conversation history if a tool is available for the user's request.\n"
             "Example user prompts that should trigger the memory tool: 'show my memory', 'what do you know about me?', 'list my facts', 'display my memory', 'what's in your memory?'. "
+            "\nYou can enter local shell mode at any time by typing ! at the prompt. In shell mode, you can run Linux commands directly, and type exit to return to chat mode. "
+            "\nYour response MUST at least include either a tool call or a user-facing answer. <think>...</think> is optional. "
+            "Do NOT respond with only a <think> section. If you do not call a tool, or if your response is only a <think> section, your response will be ignored."
         )

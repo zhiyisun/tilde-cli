@@ -1,5 +1,6 @@
 from .base_adapter import BaseModelAdapter
 import json
+import logging
 
 class QwenModelAdapter(BaseModelAdapter):
     def build_tool_definitions(self, tools):

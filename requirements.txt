@@ -5,3 +5,4 @@ requests-mock
 cryptography
 rich
 paramiko
+prompt_toolkit
